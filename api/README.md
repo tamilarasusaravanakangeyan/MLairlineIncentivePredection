@@ -10,6 +10,10 @@ FastAPI service for:
 - Option B: next-quarter revenue target regression
 - Option C: next-best incentive recommendation
 
+## Changelog
+
+- 2026-02-26: Clarified Option A/B/C evaluation metrics and operational interpretation in project documentation.
+
 ## Endpoints
 
 - `GET /health`
