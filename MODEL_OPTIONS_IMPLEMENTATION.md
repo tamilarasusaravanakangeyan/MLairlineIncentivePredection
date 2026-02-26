@@ -291,3 +291,10 @@ If regression artifact is missing, Option B and C endpoints return `503`.
 - Quantile regression for revenue target ranges (P10/P50/P90).
 - Learned recommendation policy (uplift/ranking model).
 - MLflow tracking integration for reproducibility and model governance.
+
+---
+
+## 10) Documentation Updates
+
+- 2026-02-26: Added detailed evaluation metric definitions and operational interpretation for Option A, Option B, and Option C.
+- 2026-02-26: Aligned project and API README wording with this implementation guide.
