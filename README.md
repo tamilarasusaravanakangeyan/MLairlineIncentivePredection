@@ -119,6 +119,26 @@ Detailed API docs:
 
 - `api/README.md`
 
+## Streamlit dashboard
+
+Dashboard module:
+
+- `ui/streamlit_dashboard/app.py`
+
+Runs on a separate port and visualizes Option A/B/C outputs in tables and charts.
+
+Start dashboard:
+
+```bash
+pip install -r ui/streamlit_dashboard/requirements.txt
+streamlit run ui/streamlit_dashboard/app.py --server.port 8501
+```
+
+Or use helper scripts from repository root:
+
+- Windows: `./run_dashboard.ps1`
+- Linux/macOS: `chmod +x ./run_dashboard.sh && ./run_dashboard.sh`
+
 ## Quick start
 
 ### Install dependencies
@@ -168,6 +188,13 @@ notebooks/
   next_best_incentive_tier_model.ipynb
 run_api.ps1
 run_api.sh
+run_dashboard.ps1
+run_dashboard.sh
+ui/
+  streamlit_dashboard/
+    app.py
+    README.md
+    requirements.txt
 README.md
 ```
 
