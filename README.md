@@ -139,6 +139,26 @@ Or use helper scripts from repository root:
 - Windows: `./run_dashboard.ps1`
 - Linux/macOS: `chmod +x ./run_dashboard.sh && ./run_dashboard.sh`
 
+## PostgreSQL explorer dashboard (new)
+
+Database + model comparison dashboard module:
+
+- `ui/db_compare_dashboard/app.py`
+
+This dashboard connects directly to PostgreSQL to browse all tables and also compares model outputs (Option A/B/C API) against historical transaction aggregates.
+
+Start database explorer dashboard:
+
+```bash
+pip install -r ui/db_compare_dashboard/requirements.txt
+streamlit run ui/db_compare_dashboard/app.py --server.port 8502
+```
+
+Or use helper scripts from repository root:
+
+- Windows: `./run_db_dashboard.ps1`
+- Linux/macOS: `chmod +x ./run_db_dashboard.sh && ./run_db_dashboard.sh`
+
 ## Quick start
 
 ### Install dependencies
@@ -190,7 +210,13 @@ run_api.ps1
 run_api.sh
 run_dashboard.ps1
 run_dashboard.sh
+run_db_dashboard.ps1
+run_db_dashboard.sh
 ui/
+  db_compare_dashboard/
+    app.py
+    README.md
+    requirements.txt
   streamlit_dashboard/
     app.py
     README.md
