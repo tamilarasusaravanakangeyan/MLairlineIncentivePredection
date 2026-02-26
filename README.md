@@ -4,6 +4,10 @@
 
 End-to-end machine learning implementation for airline travel-agency incentives using PostgreSQL historical data.
 
+## Changelog
+
+- 2026-02-26: Clarified Option A/B/C evaluation metrics and their operational interpretation.
+
 ## What is implemented
 
 ### Option A — Classification
