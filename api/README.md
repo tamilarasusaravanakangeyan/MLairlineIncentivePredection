@@ -21,6 +21,12 @@ FastAPI service for:
 - `GET /predict-revenue/{agency_id}?as_of_date=YYYY-MM-DD`
 - `GET /recommend/{agency_id}?as_of_date=YYYY-MM-DD`
 
+## API Docs in Browser
+
+- Swagger UI: `http://127.0.0.1:8000/docs`
+- ReDoc: `http://127.0.0.1:8000/redoc`
+- OpenAPI JSON: `http://127.0.0.1:8000/openapi.json`
+
 ## Response Contract
 
 `/predict` returns:

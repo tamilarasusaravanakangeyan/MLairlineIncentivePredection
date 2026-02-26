@@ -76,6 +76,16 @@ def run_smoke_test() -> None:
     assert health_response.status_code == 200, health_response.text
     assert health_response.json() == {"status": "ok"}
 
+    docs_response = client.get("/docs")
+    assert docs_response.status_code == 200, docs_response.text
+    assert "Swagger UI" in docs_response.text
+
+    openapi_response = client.get("/openapi.json")
+    assert openapi_response.status_code == 200, openapi_response.text
+    openapi_payload = openapi_response.json()
+    assert openapi_payload.get("openapi")
+    assert openapi_payload.get("info", {}).get("title") == "Next Best Incentive Tier API"
+
     prediction_response = client.get("/predict/1", params={"as_of_date": "2026-02-01"})
     assert prediction_response.status_code == 200, prediction_response.text
 

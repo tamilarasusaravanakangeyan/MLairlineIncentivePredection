@@ -227,7 +227,13 @@ class AppState:
 
 
 state = AppState()
-app = FastAPI(title="Next Best Incentive Tier API", version="0.1.0")
+app = FastAPI(
+    title="Next Best Incentive Tier API",
+    version="0.1.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+)
 
 
 def _build_features(df: pd.DataFrame) -> pd.DataFrame:
