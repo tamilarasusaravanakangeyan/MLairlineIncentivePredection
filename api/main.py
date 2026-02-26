@@ -40,6 +40,10 @@ class Settings:
     def label_map_path(self) -> Path:
         return self.artifact_dir / "label_mapping.joblib"
 
+    @property
+    def revenue_model_path(self) -> Path:
+        return self.artifact_dir / "next_revenue_xgb_regressor.joblib"
+
 
 FEATURE_COLUMNS = [
     "txn_count_month",
@@ -169,6 +173,21 @@ FROM growth g
 ORDER BY g.snapshot_month;
 """
 
+TIER_CATALOG_SQL = """
+SELECT
+    it.program_id,
+    ip.program_name,
+    it.tier_id,
+    it.tier_name,
+    it.tier_level,
+    COALESCE(it.min_annual_revenue, 0)::numeric AS min_annual_revenue,
+    COALESCE(it.max_annual_revenue, 999999999999::numeric) AS max_annual_revenue,
+    COALESCE(it.commission_percentage, 0)::numeric AS commission_percentage
+FROM incentive_tiers it
+JOIN incentive_programs ip ON it.program_id = ip.program_id
+ORDER BY it.tier_level ASC, it.min_annual_revenue ASC;
+"""
+
 
 class PredictionResponse(BaseModel):
     agency_id: int
@@ -177,11 +196,32 @@ class PredictionResponse(BaseModel):
     confidence_score: float = Field(ge=0.0, le=1.0)
 
 
+class RevenueTargetResponse(BaseModel):
+    agency_id: int
+    as_of_date: str
+    predicted_revenue_target: float
+
+
+class RecommendationResponse(BaseModel):
+    agency_id: int
+    as_of_date: str
+    program_id: int
+    program_name: str
+    tier_id: int
+    tier_name: str
+    tier_level: int
+    commission_percentage: float
+    predicted_tier_id: int
+    confidence_score: float = Field(ge=0.0, le=1.0)
+    predicted_revenue_target: float
+
+
 class AppState:
     def __init__(self) -> None:
         self.settings = Settings()
         self.engine: Engine | None = None
         self.model: xgb.XGBClassifier | None = None
+        self.revenue_model: xgb.XGBRegressor | None = None
         self.feature_columns: list[str] = []
         self.class_to_tier: dict[int, int] = {}
 
@@ -209,6 +249,12 @@ def _extract_agency_frame(engine: Engine, agency_id: int, as_of_date: str) -> pd
             parse_dates=["snapshot_month"],
         )
     return df
+
+
+def _extract_tier_catalog(engine: Engine) -> pd.DataFrame:
+    with engine.connect() as conn:
+        tier_df = pd.read_sql_query(text(TIER_CATALOG_SQL), conn)
+    return tier_df
 
 
 def _predict(agency_id: int, as_of_date: str) -> PredictionResponse:
@@ -239,6 +285,85 @@ def _predict(agency_id: int, as_of_date: str) -> PredictionResponse:
     )
 
 
+def _predict_revenue_target(agency_id: int, as_of_date: str) -> RevenueTargetResponse:
+    if state.engine is None or state.revenue_model is None:
+        raise RuntimeError("Revenue target model is not initialized.")
+
+    base_df = _extract_agency_frame(state.engine, agency_id=agency_id, as_of_date=as_of_date)
+    if base_df.empty:
+        raise ValueError(f"No historical data for agency_id={agency_id} up to {as_of_date}")
+
+    agency_df = _build_features(base_df)
+    latest_row = agency_df.iloc[-1:]
+    feature_columns = state.feature_columns or FEATURE_COLUMNS
+    x_score = latest_row[feature_columns].replace([np.inf, -np.inf], np.nan).fillna(0)
+
+    predicted_revenue_target = float(state.revenue_model.predict(x_score)[0])
+    predicted_revenue_target = max(0.0, predicted_revenue_target)
+
+    return RevenueTargetResponse(
+        agency_id=agency_id,
+        as_of_date=as_of_date,
+        predicted_revenue_target=predicted_revenue_target,
+    )
+
+
+def _recommend_next_incentive(agency_id: int, as_of_date: str) -> RecommendationResponse:
+    if state.engine is None:
+        raise RuntimeError("Database engine is not initialized.")
+
+    tier_prediction = _predict(agency_id=agency_id, as_of_date=as_of_date)
+    revenue_prediction = _predict_revenue_target(agency_id=agency_id, as_of_date=as_of_date)
+
+    tier_catalog = _extract_tier_catalog(state.engine)
+    if tier_catalog.empty:
+        raise RuntimeError("Incentive tier catalog is empty.")
+
+    annualized_revenue = revenue_prediction.predicted_revenue_target * 4.0
+    candidates = tier_catalog[
+        (annualized_revenue >= tier_catalog["min_annual_revenue"])
+        & (annualized_revenue < tier_catalog["max_annual_revenue"])
+    ].copy()
+
+    if candidates.empty:
+        candidates = tier_catalog.copy()
+
+    max_commission = float(candidates["commission_percentage"].max()) if len(candidates) else 1.0
+    if max_commission <= 0:
+        max_commission = 1.0
+
+    candidates["commission_score"] = candidates["commission_percentage"] / max_commission
+    candidates["tier_match_score"] = np.where(
+        candidates["tier_id"].astype(int) == int(tier_prediction.predicted_tier_id),
+        1.0,
+        0.0,
+    )
+    candidates["recommendation_score"] = (
+        0.55 * candidates["commission_score"]
+        + 0.35 * candidates["tier_match_score"]
+        + 0.10 * float(tier_prediction.confidence_score)
+    )
+
+    best = candidates.sort_values(
+        ["recommendation_score", "tier_level", "commission_percentage"],
+        ascending=[False, True, False],
+    ).iloc[0]
+
+    return RecommendationResponse(
+        agency_id=agency_id,
+        as_of_date=as_of_date,
+        program_id=int(best["program_id"]),
+        program_name=str(best["program_name"]),
+        tier_id=int(best["tier_id"]),
+        tier_name=str(best["tier_name"]),
+        tier_level=int(best["tier_level"]),
+        commission_percentage=float(best["commission_percentage"]),
+        predicted_tier_id=int(tier_prediction.predicted_tier_id),
+        confidence_score=float(tier_prediction.confidence_score),
+        predicted_revenue_target=float(revenue_prediction.predicted_revenue_target),
+    )
+
+
 @app.on_event("startup")
 def startup_event() -> None:
     state.engine = create_engine(state.settings.db_url, pool_pre_ping=True, future=True)
@@ -254,6 +379,15 @@ def startup_event() -> None:
     state.feature_columns = list(joblib.load(state.settings.feature_path))
     state.class_to_tier = dict(joblib.load(state.settings.label_map_path))
 
+    if state.settings.revenue_model_path.exists():
+        state.revenue_model = joblib.load(state.settings.revenue_model_path)
+    else:
+        state.revenue_model = None
+        logger.warning(
+            "Revenue model artifact not found at %s. /predict-revenue and /recommend will return 503 until generated.",
+            state.settings.revenue_model_path,
+        )
+
     logger.info("API initialized. Artifacts loaded from %s", state.settings.artifact_dir)
 
 
@@ -268,6 +402,30 @@ def predict_endpoint(agency_id: int, as_of_date: date) -> PredictionResponse:
         return _predict(agency_id=agency_id, as_of_date=as_of_date.isoformat())
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/predict-revenue/{agency_id}", response_model=RevenueTargetResponse)
+def predict_revenue_endpoint(agency_id: int, as_of_date: date) -> RevenueTargetResponse:
+    try:
+        return _predict_revenue_target(agency_id=agency_id, as_of_date=as_of_date.isoformat())
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/recommend/{agency_id}", response_model=RecommendationResponse)
+def recommend_endpoint(agency_id: int, as_of_date: date) -> RecommendationResponse:
+    try:
+        return _recommend_next_incentive(agency_id=agency_id, as_of_date=as_of_date.isoformat())
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
