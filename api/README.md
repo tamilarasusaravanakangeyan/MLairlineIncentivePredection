@@ -113,7 +113,7 @@ This script installs API dependencies and starts Uvicorn using the workspace vir
 ## Environment Variables
 
 - `DATABASE_URL` (optional)
-  - Default: `postgresql://postgres:postgres@host.docker.internal:5432/airline_incentives`
+  - Default: `postgresql://postgres:postgres@localhost:5432/airline_incentives`
 - `ARTIFACT_DIR` (optional)
   - Default: `notebooks/artifacts`
 

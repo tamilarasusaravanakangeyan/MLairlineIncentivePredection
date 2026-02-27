@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class DashboardConfig:
     db_url: str = os.getenv(
         "DATABASE_URL",
-        "postgresql://postgres:postgres@host.docker.internal:5432/airline_incentives",
+        "postgresql://postgres:postgres@localhost:5432/airline_incentives",
     )
     api_base_url: str = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 

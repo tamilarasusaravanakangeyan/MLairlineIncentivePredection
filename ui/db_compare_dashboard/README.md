@@ -22,7 +22,7 @@ Open in browser:
 ## Inputs
 
 - PostgreSQL URL (default):
-  - `postgresql://postgres:postgres@host.docker.internal:5432/airline_incentives`
+  - `postgresql://postgres:postgres@localhost:5432/airline_incentives`
 - API base URL (default):
   - `http://127.0.0.1:8000`
 - As-of date and agency IDs for comparison

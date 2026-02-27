@@ -58,7 +58,7 @@ Main PostgreSQL tables:
 
 Default DB URL:
 
-`postgresql://postgres:postgres@host.docker.internal:5432/airline_incentives`
+`postgresql://postgres:postgres@localhost:5432/airline_incentives`
 
 ## Feature engineering highlights
 

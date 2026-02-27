@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class Settings:
     db_url: str = os.getenv(
         "DATABASE_URL",
-        "postgresql://postgres:postgres@host.docker.internal:5432/airline_incentives",
+        "postgresql://postgres:postgres@localhost:5432/airline_incentives",
     )
     artifact_dir: Path = Path(os.getenv("ARTIFACT_DIR", "notebooks/artifacts"))
 
